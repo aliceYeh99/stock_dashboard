@@ -1,12 +1,22 @@
 import streamlit as st
 
 from symbols import SYMBOLS
+from config import DEFAULT_BROKER, BROKERS
 from utils.storage import *
 
+broker_name = st.selectbox(
+    "證券",
+    BROKERS.keys(),
+    index=list(BROKERS.values()).index(
+        DEFAULT_BROKER
+    )
+)
+
+broker = BROKERS[broker_name]
 
 st.title("📋 挑股")
 
-stock_names = load_json(
+stock_names = load_root_json(
     "stock_names.json",
     {}
 )
@@ -17,7 +27,8 @@ stock_names = load_json(
 
 saved_selected = load_json(
     "selected.json",
-    []
+    [],
+    broker
 )
 
 
@@ -125,7 +136,8 @@ if st.button(
 
     save_json(
         "selected.json",
-        selected
+        selected,
+        broker
     )
 
 

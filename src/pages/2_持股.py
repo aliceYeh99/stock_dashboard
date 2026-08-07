@@ -1,7 +1,18 @@
 import streamlit as st
 
 from utils.storage import *
+from config import DEFAULT_BROKER, BROKERS
 from utils.update_prices import update_current_prices
+
+broker_name = st.selectbox(
+    "證券",
+    BROKERS.keys(),
+    index=list(BROKERS.values()).index(
+        DEFAULT_BROKER
+    )
+)
+
+broker = BROKERS[broker_name]
 
 st.title("💰 持股管理")
 
@@ -14,7 +25,7 @@ if st.button(
         "更新價格中..."
     ):
 
-        update_current_prices()
+        update_current_prices(broker)
 
 
     st.success(
@@ -30,9 +41,11 @@ if st.button(
 
 selected = load_json(
     "selected.json",
-    []
+    [],
+    broker
 )
-stock_names = load_json(
+print("*** stock_names.json")
+stock_names = load_root_json(
     "stock_names.json",
     {}
 )
@@ -53,11 +66,13 @@ if not selected:
 
 portfolio = load_json(
     "portfolio.json",
-    {}
+    {},
+    broker
 )
 current_prices = load_json(
     "current_prices.json",
-    {}
+    {},
+    broker
 )
 
 

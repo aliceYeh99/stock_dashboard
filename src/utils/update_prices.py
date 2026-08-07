@@ -8,12 +8,13 @@ from utils.storage import (
 )
 
 
-def update_current_prices():
+def update_current_prices(broker):
 
 
     selected = load_json(
         "selected.json",
-        []
+        [],
+        broker
     )
 
 
@@ -51,7 +52,8 @@ def update_current_prices():
 
     save_json(
         "current_prices.json",
-        prices
+        prices,
+        broker
     )
 
 
