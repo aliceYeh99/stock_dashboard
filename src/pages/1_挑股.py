@@ -14,6 +14,17 @@ broker_name = st.selectbox(
 
 broker = BROKERS[broker_name]
 
+if st.session_state.get("broker") != broker:
+    
+    st.session_state.broker = broker
+
+    st.session_state.selected = load_json(
+        "selected.json",
+        [],
+        broker
+    )
+
+
 st.title("📋 挑股")
 
 stock_names = load_root_json(

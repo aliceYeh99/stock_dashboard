@@ -1,7 +1,7 @@
 import streamlit as st
 
 from utils.storage import *
-from config import DEFAULT_BROKER, BROKERS
+from config import DEFAULT_BROKER, BROKERS, FEE_RATES
 from utils.update_prices import update_current_prices
 
 broker_name = st.selectbox(
@@ -11,8 +11,19 @@ broker_name = st.selectbox(
         DEFAULT_BROKER
     )
 )
-
+#聯邦證的  # 0.141%
+fee_rate = FEE_RATES[broker_name] # 0.142%
 broker = BROKERS[broker_name]
+
+if st.session_state.get("broker") != broker:
+    
+    st.session_state.broker = broker
+
+    st.session_state.selected = load_json(
+        "selected.json",
+        [],
+        broker
+    )
 
 st.title("💰 持股管理")
 
@@ -177,7 +188,8 @@ with st.expander("✏️ 編輯持股", expanded=False):
 
                 save_json(
                     "portfolio.json",
-                    portfolio
+                    portfolio,
+                    broker
                 )
 
                 st.success(
@@ -228,19 +240,22 @@ st.subheader(
 )
 
 # 標題列
-col1, col2, col3, col4 = st.columns([2,1,1,1])
+col1, col2, col3, col4, col5 = st.columns([2,1,1,1,1])
 
 with col1:
     st.write("股票")
 
 with col2:
-    st.write("成本")
+    st.write("成交均價")
 
 with col3:
     st.write("現價")
 
 with col4:
     st.write("報酬率")
+
+with col5:
+    st.write("持有成本")
 
 total_cost = 0
 total_value = 0
@@ -270,7 +285,7 @@ for idx, (symbol, data) in enumerate(
 
         cost = portfolio[symbol]["cost"]
 
-        total_cost += shares * cost
+        total_cost += shares * cost * (1 + fee_rate)
 
         total_value += shares * price
 
@@ -285,8 +300,8 @@ for idx, (symbol, data) in enumerate(
 
             profit = 0
 
-        col1, col2, col3, col4 = st.columns(
-            [2,1,1,1]
+        col1, col2, col3, col4, col5 = st.columns(
+            [2,1,1,1,1]
         )
 
 
@@ -298,7 +313,7 @@ for idx, (symbol, data) in enumerate(
 
         with col2:
             st.write(
-                f"成本\n{cost:,.2f}"
+                f"均價\n{cost:,.2f}"
             )
 
 
@@ -318,6 +333,14 @@ for idx, (symbol, data) in enumerate(
             st.markdown(
                 f":{color}[{profit:+.1f}%]"
             )
+
+        with col5:
+            # 成交金額 × 0.1425%
+            hold_cost = cost * shares * (1 + fee_rate)
+            st.write(
+                f"\n{hold_cost:,.0f}"
+            )
+
 
 total_profit = total_value - total_cost
 
@@ -340,9 +363,15 @@ with col2:
     )
 
 with col3:
+    if total_cost > 0:
+        total_profit_pct = total_profit / total_cost * 100
+        delta = f"{total_profit_pct:+.2f}%"
+    else:
+        delta = "-"
+
     st.metric(
         "損益",
         f"{total_profit:,.0f}",
-        delta=f"{total_profit/total_cost*100:.2f}%",
+        delta=f"{delta}",
         delta_color="inverse"
     )

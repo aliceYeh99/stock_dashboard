@@ -27,9 +27,9 @@ def update_current_prices(broker):
 
         data = ticker.history(
             period="1d",
-            interval="1m"
+            
         )
-
+        # interval="1m"
 
         if not data.empty:
 
