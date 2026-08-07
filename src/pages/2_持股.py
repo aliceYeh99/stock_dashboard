@@ -65,140 +65,140 @@ current_prices = load_json(
 # 編輯持股
 # -------------------------
 
+with st.expander("✏️ 編輯持股", expanded=False):
 
-
-st.subheader(
-    f"目前股票：{len(selected)} 檔"
-)
-
-
-for symbol in sorted(selected):
-
-    if symbol not in portfolio:
-
-        portfolio[symbol] = {
-            "shares": 0,
-            "cost": 0
-        }
-
-    name = stock_names.get(
-        symbol,
-        ""
-    )
-
-    cost = portfolio[symbol]["cost"]
-
-    price = current_prices.get(
-        symbol,
-        {}
-    ).get(
-        "price",
-        0
+    st.subheader(
+        f"目前股票：{len(selected)} 檔"
     )
 
 
-    st.divider()
+    for symbol in sorted(selected):
 
-
-    col1, col2, col3, col4 = st.columns(
-        [2,1,1,0.5]
-    )
-
-
-    with col1:
-        display_symbol = symbol.replace(".TW", "").replace(".TWO", "")
-        market = "上市" if ".TW" in symbol else "上櫃"
-        st.markdown(
-            f"""
-            <div>
-                <span style="font-size:20px;">
-                    📈 <b>{name}</b>
-                </span><br>
-                <span style="font-size:14px;">
-                    ({market}) {display_symbol}
-                </span>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-
-    with col2:
-
-        shares = st.number_input(
-            "股數",
-            min_value=0,
-            step=100,
-            value=int(
-                portfolio[symbol]["shares"]
-            ),
-            key=f"{symbol}_shares"
-        )
-
-
-    with col3:
-
-        cost = st.number_input(
-            "成本",
-            min_value=0.0,
-            step=0.5,
-            format="%.2f",
-            value=float(
-                portfolio[symbol]["cost"]
-            ),
-            key=f"{symbol}_cost"
-        )
-    with col4:
-
-        if st.button(
-            "💾",
-            key=f"{symbol}_save"
-        ):
+        if symbol not in portfolio:
 
             portfolio[symbol] = {
-                "shares": shares,
-                "cost": cost
+                "shares": 0,
+                "cost": 0
             }
 
-            save_json(
-                "portfolio.json",
-                portfolio
+        name = stock_names.get(
+            symbol,
+            ""
+        )
+
+        cost = portfolio[symbol]["cost"]
+
+        price = current_prices.get(
+            symbol,
+            {}
+        ).get(
+            "price",
+            0
+        )
+
+
+        st.divider()
+
+
+        col1, col2, col3, col4 = st.columns(
+            [2,1,1,0.5]
+        )
+
+
+        with col1:
+            display_symbol = symbol.replace(".TW", "").replace(".TWO", "")
+            market = "上市" if ".TW" in symbol else "上櫃"
+            st.markdown(
+                f"""
+                <div>
+                    <span style="font-size:20px;">
+                        📈 <b>{name}</b>
+                    </span><br>
+                    <span style="font-size:14px;">
+                        ({market}) {display_symbol}
+                    </span>
+                </div>
+                """,
+                unsafe_allow_html=True
             )
 
-            st.success(
-                f"{symbol} 已儲存"
+
+        with col2:
+
+            shares = st.number_input(
+                "股數",
+                min_value=0,
+                step=100,
+                value=int(
+                    portfolio[symbol]["shares"]
+                ),
+                key=f"{symbol}_shares"
             )
 
-    portfolio[symbol] = {
 
-        "shares": shares,
+        with col3:
 
-        "cost": cost
-    }
+            cost = st.number_input(
+                "成本",
+                min_value=0.0,
+                step=0.5,
+                format="%.2f",
+                value=float(
+                    portfolio[symbol]["cost"]
+                ),
+                key=f"{symbol}_cost"
+            )
+        with col4:
+
+            if st.button(
+                "💾",
+                key=f"{symbol}_save"
+            ):
+
+                portfolio[symbol] = {
+                    "shares": shares,
+                    "cost": cost
+                }
+
+                save_json(
+                    "portfolio.json",
+                    portfolio
+                )
+
+                st.success(
+                    f"{symbol} 已儲存"
+                )
+
+        portfolio[symbol] = {
+
+            "shares": shares,
+
+            "cost": cost
+        }
 
 
 
-# -------------------------
-# 儲存
-# -------------------------
+# # -------------------------
+# # 儲存
+# # -------------------------
 
-st.divider()
-
-
-if st.button(
-    "💾 儲存持股",
-    use_container_width=True
-):
-
-    save_json(
-        "portfolio.json",
-        portfolio
-    )
+# st.divider()
 
 
-    st.success(
-        "持股資料已儲存"
-    )
+# if st.button(
+#     "💾 儲存持股",
+#     use_container_width=True
+# ):
+
+#     save_json(
+#         "portfolio.json",
+#         portfolio
+#     )
+
+
+#     st.success(
+#         "持股資料已儲存"
+#     )
 
 
 
