@@ -65,6 +65,8 @@ current_prices = load_json(
 # 編輯持股
 # -------------------------
 
+
+
 st.subheader(
     f"目前股票：{len(selected)} 檔"
 )
@@ -99,7 +101,7 @@ for symbol in sorted(selected):
 
 
     col1, col2, col3, col4 = st.columns(
-        [2,1,1,1]
+        [2,1,1,0.5]
     )
 
 
@@ -110,10 +112,10 @@ for symbol in sorted(selected):
             f"""
             <div>
                 <span style="font-size:20px;">
-                    📈 <b>{display_symbol}</b>
+                    📈 <b>{name}</b>
                 </span><br>
                 <span style="font-size:14px;">
-                    ({market}) {name}
+                    ({market}) {display_symbol}
                 </span>
             </div>
             """,
@@ -146,7 +148,26 @@ for symbol in sorted(selected):
             ),
             key=f"{symbol}_cost"
         )
+    with col4:
 
+        if st.button(
+            "💾",
+            key=f"{symbol}_save"
+        ):
+
+            portfolio[symbol] = {
+                "shares": shares,
+                "cost": cost
+            }
+
+            save_json(
+                "portfolio.json",
+                portfolio
+            )
+
+            st.success(
+                f"{symbol} 已儲存"
+            )
 
     portfolio[symbol] = {
 
@@ -206,16 +227,22 @@ with col3:
 with col4:
     st.write("報酬率")
 
-for symbol, data in portfolio.items():
+total_cost = 0
+total_value = 0
+
+for idx, (symbol, data) in enumerate(
+    sorted(portfolio.items()),
+    start=1
+):
 
     if data["shares"] > 0:
         name = stock_names.get(
                 symbol,
                 ""
             )
-        amount = data['shares'] * data['cost']
 
-        cost = portfolio[symbol]["cost"]
+        shares = data['shares']
+        
 
         price = current_prices.get(
             symbol,
@@ -224,6 +251,13 @@ for symbol, data in portfolio.items():
             "price",
             0
         )
+        
+
+        cost = portfolio[symbol]["cost"]
+
+        total_cost += shares * cost
+
+        total_value += shares * price
 
 
         if cost > 0 and price > 0:
@@ -243,29 +277,57 @@ for symbol, data in portfolio.items():
 
         with col1:
             st.write(
-                f"{symbol} {name}"
+                f"{idx}. {symbol} {name}"
             )
 
 
         with col2:
             st.write(
-                f"成本\n{cost}"
+                f"成本\n{cost:,.2f}"
             )
 
 
         with col3:
             st.write(
-                f"現價\n{price}"
+                f"現價\n{price:,.2f}"
             )
 
 
         with col4:
 
             if profit > 0:
-                color = "green"
-            else:
                 color = "red"
+            else:
+                color = "green"
 
             st.markdown(
                 f":{color}[{profit:+.1f}%]"
             )
+
+total_profit = total_value - total_cost
+
+st.divider()
+
+st.subheader("📊 持股總覽")
+
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    st.metric(
+        "投入成本",
+        f"{total_cost:,.0f}"
+    )
+
+with col2:
+    st.metric(
+        "目前市值",
+        f"{total_value:,.0f}"
+    )
+
+with col3:
+    st.metric(
+        "損益",
+        f"{total_profit:,.0f}",
+        delta=f"{total_profit/total_cost*100:.2f}%",
+        delta_color="inverse"
+    )
