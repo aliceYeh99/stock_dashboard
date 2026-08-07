@@ -104,9 +104,20 @@ for symbol in sorted(selected):
 
 
     with col1:
-
-        st.write(
-            f"📈 {symbol} {name}"
+        display_symbol = symbol.replace(".TW", "").replace(".TWO", "")
+        market = "上市" if ".TW" in symbol else "上櫃"
+        st.markdown(
+            f"""
+            <div>
+                <span style="font-size:20px;">
+                    📈 <b>{display_symbol}</b>
+                </span><br>
+                <span style="font-size:14px;">
+                    ({market}) {name}
+                </span>
+            </div>
+            """,
+            unsafe_allow_html=True
         )
 
 
@@ -129,7 +140,7 @@ for symbol in sorted(selected):
             "成本",
             min_value=0.0,
             step=0.5,
-            format="%.1f",
+            format="%.2f",
             value=float(
                 portfolio[symbol]["cost"]
             ),
@@ -180,6 +191,20 @@ st.subheader(
     "目前持股"
 )
 
+# 標題列
+col1, col2, col3, col4 = st.columns([2,1,1,1])
+
+with col1:
+    st.write("股票")
+
+with col2:
+    st.write("成本")
+
+with col3:
+    st.write("現價")
+
+with col4:
+    st.write("報酬率")
 
 for symbol, data in portfolio.items():
 
@@ -190,8 +215,57 @@ for symbol, data in portfolio.items():
             )
         amount = data['shares'] * data['cost']
 
-        st.write(
-            f"""
-            {symbol} {name}  {data['shares']} 股 ×  {data['cost']}  金額 {amount:,.0f} 元
-            """
+        cost = portfolio[symbol]["cost"]
+
+        price = current_prices.get(
+            symbol,
+            {}
+        ).get(
+            "price",
+            0
         )
+
+
+        if cost > 0 and price > 0:
+
+            profit = (
+                price - cost
+            ) / cost * 100
+
+        else:
+
+            profit = 0
+
+        col1, col2, col3, col4 = st.columns(
+            [2,1,1,1]
+        )
+
+
+        with col1:
+            st.write(
+                f"{symbol} {name}"
+            )
+
+
+        with col2:
+            st.write(
+                f"成本\n{cost}"
+            )
+
+
+        with col3:
+            st.write(
+                f"現價\n{price}"
+            )
+
+
+        with col4:
+
+            if profit > 0:
+                color = "green"
+            else:
+                color = "red"
+
+            st.markdown(
+                f":{color}[{profit:+.1f}%]"
+            )
