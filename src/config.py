@@ -1,4 +1,10 @@
+import json
+from pathlib import Path
+
+
 DEFAULT_BROKER = "fubon"
+CONFIG_FILE = Path("data/default_broker.json")
+
 
 BROKERS = {
     "富邦證券":"fubon",
@@ -13,3 +19,23 @@ FEE_RATES = {
     "元大證券":0,
     "員工信託":0
 }
+
+def load_default_broker():
+    ##
+    if not CONFIG_FILE.exists():
+        return "fubon"
+
+    with open(
+        CONFIG_FILE,
+        "r",
+        encoding="utf-8"
+    ) as f:
+        config = json.load(f)
+    
+    return config.get(
+        "default_broker",
+        "fubon"
+    )
+
+
+DEFAULT_BROKER = load_default_broker()

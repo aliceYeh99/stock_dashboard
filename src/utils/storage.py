@@ -115,3 +115,26 @@ def save_json(
             ensure_ascii=False
         )
 
+
+
+def save_root_json(
+    filename,
+    data
+):
+
+    path = get_root_path(
+        filename
+    )
+
+    with open(
+        path,
+        "w",
+        encoding="utf8"
+    ) as f:
+
+        json.dump(
+            data,
+            f,
+            indent=4,
+            ensure_ascii=False
+        )

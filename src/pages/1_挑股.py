@@ -1,8 +1,16 @@
 import streamlit as st
 
 from symbols import SYMBOLS
-from config import DEFAULT_BROKER, BROKERS
+#from config import DEFAULT_BROKER, BROKERS --> 這樣寫會 cache
 from utils.storage import *
+
+# 這樣寫，每次都會譯 config.json
+from config import (
+    load_default_broker,
+    BROKERS
+)
+
+DEFAULT_BROKER = load_default_broker()
 
 broker_name = st.selectbox(
     "證券",
@@ -15,8 +23,15 @@ broker_name = st.selectbox(
 broker = BROKERS[broker_name]
 
 if st.session_state.get("broker") != broker:
-    
+
     st.session_state.broker = broker
+    # 這樣你每次換券商：就會自動： data/stocks/default_broker.json
+    save_root_json(
+        "default_broker.json",
+        {
+            "broker": broker
+        }
+    )
 
     st.session_state.selected = load_json(
         "selected.json",
