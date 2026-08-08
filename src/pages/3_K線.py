@@ -62,8 +62,27 @@ stock_options = {
     for symbol in sorted(SYMBOLS)
 }
 
-selected_label = st.selectbox("股票", list(stock_options.keys()))
+# selected_label = st.selectbox("股票", list(stock_options.keys()))
+# symbol = stock_options[selected_label]
+
+# 找到原本 3. Streamlit UI 介面 區塊的這幾行，替換成以下程式碼：
+
+selected_label = st.selectbox(
+    "搜尋股票 (可直接輸入代號或名稱)",
+    options=list(stock_options.keys()),
+    index=None,  # 👈 預設不選取任何項目，點進去即可直接打字
+    placeholder="請輸入或選擇股票...",
+)
+
+# 防呆：如果尚未選擇股票，提示使用者並暫停後續繪圖
+if not selected_label:
+    st.info("💡 請在上方搜尋並選擇一檔股票以顯示 K 線圖。")
+    st.stop()
+
 symbol = stock_options[selected_label]
+
+
+
 period = st.selectbox("顯示期間", ["3mo", "6mo", "1y"], index=1)
 
 force_update = False
@@ -125,6 +144,11 @@ fig, (ax1, ax2) = plt.subplots(
 fig.patch.set_facecolor("#1e1e1e")
 ax1.set_facecolor("#1e1e1e")
 ax2.set_facecolor("#1e1e1e")
+
+# 👇 貼上這段：將上圖與下圖的所有邊框改為黑色（或與背景同色的 #1e1e1e）
+for ax in [ax1, ax2]:
+    for spine in ax.spines.values():
+        spine.set_color("#1e1e1e")  # 若想留極細微灰框可設 '#333333'
 
 # ────── 上圖：手動繪製蠟燭 K 線 & 成交量顏色判定 ──────
 bar_colors = []
