@@ -3,7 +3,7 @@ from pathlib import Path
 
 
 DEFAULT_BROKER = "fubon"
-CONFIG_FILE = Path("data/stocks/default_broker.json")
+CONFIG_FILE = Path("data/stocks/user_config.json")
 
 
 BROKERS = {

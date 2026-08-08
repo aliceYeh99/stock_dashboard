@@ -1,8 +1,11 @@
 import streamlit as st
 
 from utils.storage import *
-from config import DEFAULT_BROKER, BROKERS, FEE_RATES
+from config import DEFAULT_BROKER, BROKERS, FEE_RATES, load_default_broker 
 from utils.update_prices import update_current_prices
+
+
+DEFAULT_BROKER = load_default_broker()
 
 broker_name = st.selectbox(
     "證券",
@@ -11,6 +14,9 @@ broker_name = st.selectbox(
         DEFAULT_BROKER
     )
 )
+
+
+
 #聯邦證的  # 0.141%
 fee_rate = FEE_RATES[broker_name] # 0.142%
 broker = BROKERS[broker_name]
@@ -18,6 +24,14 @@ broker = BROKERS[broker_name]
 if st.session_state.get("broker") != broker:
     
     st.session_state.broker = broker
+
+    # 這樣你每次換券商：就會自動： data/stocks/user_config.json
+    save_root_json(
+        "user_config.json",
+        {
+            "broker": broker
+        }
+    )
 
     st.session_state.selected = load_json(
         "selected.json",

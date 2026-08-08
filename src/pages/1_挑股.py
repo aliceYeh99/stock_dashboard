@@ -1,67 +1,38 @@
 import streamlit as st
 
 from symbols import SYMBOLS
-#from config import DEFAULT_BROKER, BROKERS --> 這樣寫會 cache
+from config import DEFAULT_BROKER, BROKERS, load_default_broker 
 from utils.storage import *
-
-# 這樣寫，每次都會譯 config.json
-from config import (
-    load_default_broker,
-    BROKERS
-)
-
-def broker_changed():
-    
-    broker_name = st.session_state.broker_name
-
-    broker = BROKERS[broker_name]
-
-    # 儲存使用者剛選的券商
-    save_root_json(
-        "default_broker.json",
-        {
-            "broker": broker
-        }
-    )
-
-    # 更新目前券商
-    st.session_state.broker = broker
-
-    # 載入這家券商的挑股清單
-    st.session_state.selected = load_json(
-        "selected.json",
-        [],
-        broker
-    )
 
 DEFAULT_BROKER = load_default_broker()
 
 broker_name = st.selectbox(
-    "證券",
-    BROKERS.keys(),
-    index=list(BROKERS.values()).index(
-        DEFAULT_BROKER
+        "證券",
+        BROKERS.keys(),
+        index=list(BROKERS.values()).index(
+            DEFAULT_BROKER
+        )
     )
+
+broker = BROKERS[broker_name] # ex: "union"
+st.session_state.selected = load_json(
+    "selected.json",
+    [],
+    broker
 )
-
-broker = BROKERS[broker_name]
-
 if st.session_state.get("broker") != broker:
 
     st.session_state.broker = broker
-    # 這樣你每次換券商：就會自動： data/stocks/default_broker.json
+
+    # 這樣你每次換券商：就會自動： data/stocks/user_config.json
     save_root_json(
-        "default_broker.json",
+        "user_config.json",
         {
             "broker": broker
         }
     )
 
-    st.session_state.selected = load_json(
-        "selected.json",
-        [],
-        broker
-    )
+
 
 
 st.title("📋 挑股")
