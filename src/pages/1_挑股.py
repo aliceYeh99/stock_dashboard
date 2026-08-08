@@ -10,6 +10,30 @@ from config import (
     BROKERS
 )
 
+def broker_changed():
+    
+    broker_name = st.session_state.broker_name
+
+    broker = BROKERS[broker_name]
+
+    # 儲存使用者剛選的券商
+    save_root_json(
+        "default_broker.json",
+        {
+            "broker": broker
+        }
+    )
+
+    # 更新目前券商
+    st.session_state.broker = broker
+
+    # 載入這家券商的挑股清單
+    st.session_state.selected = load_json(
+        "selected.json",
+        [],
+        broker
+    )
+
 DEFAULT_BROKER = load_default_broker()
 
 broker_name = st.selectbox(

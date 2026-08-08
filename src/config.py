@@ -3,7 +3,7 @@ from pathlib import Path
 
 
 DEFAULT_BROKER = "fubon"
-CONFIG_FILE = Path("data/default_broker.json")
+CONFIG_FILE = Path("data/stocks/default_broker.json")
 
 
 BROKERS = {
@@ -23,7 +23,7 @@ FEE_RATES = {
 def load_default_broker():
     ##
     if not CONFIG_FILE.exists():
-        return "fubon"
+        return "CONFIG_FILE 不存在"
 
     with open(
         CONFIG_FILE,
@@ -33,7 +33,7 @@ def load_default_broker():
         config = json.load(f)
     
     return config.get(
-        "default_broker",
+        "broker",
         "fubon"
     )
 
