@@ -3,6 +3,24 @@ import os
 
 
 BASE_DIR = "data/stocks"
+DATA_DIR = "data"
+
+
+def get_data_path(
+    filename
+):
+
+    path = os.path.join(
+        DATA_DIR,
+        filename
+    )
+
+    os.makedirs(
+        os.path.dirname(path),
+        exist_ok=True
+    )
+
+    return path
 
 def get_root_path(
     filename
@@ -72,6 +90,30 @@ def load_root_json(
 ):
 
     path = get_root_path(
+        filename
+    )
+
+    print(f"path={path}")
+
+
+    if not os.path.exists(path):
+        return default
+
+
+    with open(
+        path,
+        "r",
+        encoding="utf8"
+    ) as f:
+
+        return json.load(f)
+
+def load_data_json(
+    filename,
+    default
+):
+
+    path = get_data_path(
         filename
     )
 
