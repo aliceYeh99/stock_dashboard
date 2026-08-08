@@ -74,9 +74,23 @@ ax.set_xlabel(
     "日期"
 )
 
+# Y 軸放右邊
+ax.yaxis.tick_right()
+ax.yaxis.set_label_position("right")
+
 ax.set_ylabel(
-    "資產"
+    "資產（萬元）"
 )
+
+
+# ============================================================
+# Y 軸改成「萬元」
+# ============================================================
+
+ax.yaxis.set_major_formatter(
+    lambda x, pos: f"{x / 10000:,.0f}"
+)
+
 
 ax.legend()
 
