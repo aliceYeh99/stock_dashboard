@@ -8,3 +8,4 @@ reportlab
 lxml
 boto3
 streamlit==1.32.2
+mplfinance

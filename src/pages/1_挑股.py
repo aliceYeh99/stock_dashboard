@@ -1,67 +1,66 @@
 import streamlit as st
 
 from symbols import SYMBOLS
-from config import DEFAULT_BROKER, BROKERS, load_default_broker 
+from config import DEFAULT_BROKER, BROKERS, load_default_broker
 from utils.storage import *
+
+
+# -------------------------
+# 券商
+# -------------------------
 
 DEFAULT_BROKER = load_default_broker()
 
 broker_name = st.selectbox(
-        "證券",
-        BROKERS.keys(),
-        index=list(BROKERS.values()).index(
-            DEFAULT_BROKER
-        )
+    "證券",
+    BROKERS.keys(),
+    index=list(BROKERS.values()).index(
+        DEFAULT_BROKER
     )
-
-broker = BROKERS[broker_name] # ex: "union"
-st.session_state.selected = load_json(
-    "selected.json",
-    [],
-    broker
 )
+
+broker = BROKERS[broker_name]
+
+
+# -------------------------
+# 切換券商
+# -------------------------
+
 if st.session_state.get("broker") != broker:
 
     st.session_state.broker = broker
 
-    # 這樣你每次換券商：就會自動： data/stocks/user_config.json
-    save_root_json(
-        "user_config.json",
-        {
-            "broker": broker
-        }
+    # 換券商時，才重新讀取該券商的挑股清單
+    st.session_state.selected = load_json(
+        "selected.json",
+        [],
+        broker
     )
 
 
+# -------------------------
+# 第一次載入
+# -------------------------
+
+if "selected" not in st.session_state:
+
+    st.session_state.selected = load_json(
+        "selected.json",
+        [],
+        broker
+    )
+
+
+selected = st.session_state.selected
 
 
 st.title("📋 挑股")
+
 
 stock_names = load_root_json(
     "stock_names.json",
     {}
 )
-
-# -------------------------
-# 讀取已保存清單
-# -------------------------
-
-saved_selected = load_json(
-    "selected.json",
-    [],
-    broker
-)
-
-
-# 放到 session_state
-if "selected" not in st.session_state:
-
-    st.session_state.selected = saved_selected.copy()
-
-
-
-selected = st.session_state.selected
-
 
 
 # -------------------------
@@ -73,21 +72,18 @@ keyword = st.text_input(
 ).strip()
 
 
-
 # -------------------------
 # 股票 Button
 # -------------------------
 
 cols = st.columns(4)
 
-
 for i, symbol in enumerate(sorted(SYMBOLS)):
-    
+
     name = stock_names.get(
         symbol,
         ""
     )
-
 
     if keyword:
 
@@ -97,10 +93,7 @@ for i, symbol in enumerate(sorted(SYMBOLS)):
         ):
             continue
 
-
-
     is_selected = symbol in selected
-
 
     button_text = (
         "🟩 "
@@ -108,20 +101,15 @@ for i, symbol in enumerate(sorted(SYMBOLS)):
         else "⬜ "
     )
 
-
     button_text += f"{symbol}\n{name}"
 
-
-
     with cols[i % 4]:
-
 
         if st.button(
             button_text,
             key=symbol,
             use_container_width=True
         ):
-
 
             if symbol in selected:
 
@@ -131,10 +119,7 @@ for i, symbol in enumerate(sorted(SYMBOLS)):
 
                 selected.append(symbol)
 
-
-
             st.rerun()
-
 
 
 # -------------------------
@@ -143,11 +128,9 @@ for i, symbol in enumerate(sorted(SYMBOLS)):
 
 st.divider()
 
-
 st.write(
     f"目前選擇：{len(selected)} 檔"
 )
-
 
 
 if st.button(
@@ -161,11 +144,9 @@ if st.button(
         broker
     )
 
-
     st.success(
         "挑股清單已保存"
     )
-
 
 
 # -------------------------
@@ -174,11 +155,9 @@ if st.button(
 
 st.divider()
 
-
 st.subheader(
     "已選股票"
 )
-
 
 for s in selected:
 

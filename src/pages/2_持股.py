@@ -254,7 +254,7 @@ st.subheader(
 )
 
 # 標題列
-col1, col2, col3, col4, col5 = st.columns([2,1,1,1,1])
+col1, col2, col3, col4, col5, col6 = st.columns([2,1,1,1,1,1])
 
 with col1:
     st.write("股票")
@@ -271,6 +271,10 @@ with col4:
 with col5:
     st.write("持有成本")
 
+with col6:
+    st.write("損益")
+
+
 total_cost = 0
 total_value = 0
 
@@ -280,6 +284,7 @@ for idx, (symbol, data) in enumerate(
 ):
 
     if data["shares"] > 0:
+        
         name = stock_names.get(
                 symbol,
                 ""
@@ -305,17 +310,17 @@ for idx, (symbol, data) in enumerate(
 
 
         if cost > 0 and price > 0:
-
-            profit = (
-                price - cost
-            ) / cost * 100
+            item_cost = shares * cost * (1 + fee_rate)
+            item_value = shares * price
+            item_profit = item_value - item_cost
+            profit = item_profit / item_cost * 100
 
         else:
 
             profit = 0
 
-        col1, col2, col3, col4, col5 = st.columns(
-            [2,1,1,1,1]
+        col1, col2, col3, col4, col5, col6 = st.columns(
+            [2,1,1,1,1,1]
         )
 
 
@@ -355,6 +360,16 @@ for idx, (symbol, data) in enumerate(
                 f"\n{hold_cost:,.0f}"
             )
 
+        with col6:
+            
+            if item_profit > 0:
+                color = "red"
+            else:
+                color = "green"
+
+            st.markdown(
+                f":{color}[{item_profit:+,.0f}]"
+            )
 
 total_profit = total_value - total_cost
 
@@ -362,7 +377,7 @@ st.divider()
 
 st.subheader("📊 持股總覽")
 
-col1, col2, col3 = st.columns(3)
+col1, col2, col3,    = st.columns(3)
 
 with col1:
     st.metric(
