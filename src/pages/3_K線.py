@@ -1,37 +1,26 @@
+from io import BytesIO
 import os
+import matplotlib.font_manager as fm
 import matplotlib.pyplot as plt
-import mplfinance as mpf
 import pandas as pd
 import streamlit as st
+from common.Config import Config
+from common.telegram import send_telegram_photo_bytes
 from symbols import SYMBOLS
 from utils.download_stock import DATA_DIR, DataStorage, download_stock
 from utils.storage import load_root_json
-from common.Config import Config
-from common.telegram import send_telegram_photo_bytes
-
 
 # ============================================================
-# 1. 字型與 mplfinance 樣式
+# 1. 字型與中文字型初始化 (比照 Lambda init_font)
 # ============================================================
 FONT_NAME = "Microsoft JhengHei"
-plt.rcParams["font.sans-serif"] = [FONT_NAME]
+plt.rcParams["font.sans-serif"] = [
+    FONT_NAME,
+    "Arial Unicode MS",
+    "SimHei",
+    "sans-serif",
+]
 plt.rcParams["axes.unicode_minus"] = False
-
-my_style = mpf.make_mpf_style(
-    base_mpf_style="nightclouds",
-    marketcolors=mpf.make_marketcolors(
-        up="#ff4a4a",
-        down="#22c55e",
-        edge="inherit",
-        wick="inherit",
-        volume="inherit",
-    ),
-    facecolor="#1e1e1e",
-    figcolor="#1e1e1e",
-    gridcolor="#333333",
-    gridstyle="--",
-    rc={"font.family": FONT_NAME, "axes.unicode_minus": False},
-)
 
 # ============================================================
 # 2. 整合你的 download 功能 (讀檔 / 增量更新)
@@ -43,23 +32,20 @@ def get_stock_data(symbol, force_download=False):
     storage = DataStorage()
     file_path = os.path.join(DATA_DIR, f"{symbol}.json")
 
-    # 如果要求強制更新，或本地完全沒資料，就執行下載
     if force_download or not os.path.exists(file_path):
-        download_stock(symbol)
+        download_stock(symbol, 430)
         source = "線上增量更新"
     else:
         source = "本地 JSON 檔案"
 
-    # 讀取本地 JSON
     raw_data = storage.load_json(file_path)
 
     if not raw_data:
         return pd.DataFrame(), source
 
-    # 轉為 DataFrame，並設定 Date 為 DatetimeIndex
     df = pd.DataFrame(raw_data)
-    df["Date"] = pd.to_datetime(df["Date"])
-    df.set_index("Date", inplace=True)
+    # 確保日期格式正確
+    df["Date"] = pd.to_datetime(df["Date"]).dt.strftime("%Y-%m-%d")
 
     return df, source
 
@@ -80,13 +66,6 @@ selected_label = st.selectbox("股票", list(stock_options.keys()))
 symbol = stock_options[selected_label]
 period = st.selectbox("顯示期間", ["3mo", "6mo", "1y"], index=1)
 
-
-
-
-
-
-
-
 force_update = False
 
 # ============================================================
@@ -101,13 +80,13 @@ if df.empty:
 
 st.caption(f"ℹ️ 資料來源：{source}")
 
-# 計算 MA 均線（若原檔沒有則現場動態計算）
+# 計算均線 (防呆：若資料內沒有則動態計算)
 ma_config = [
-    ("MA5", 5, "5日線", "#ffffff"),
-    ("MA10", 10, "10日線", "#ffdf00"),
-    ("MA20", 20, "月線", "#ff00ff"),
-    ("MA60", 60, "季線", "#00ffff"),
-    ("MA120", 120, "半年線", "#ffa500"),
+    ("MA5", 5, "MA5", "#ffffff"),
+    ("MA10", 10, "MA10", "#ffdf00"),
+    ("MA20", 20, "MA20", "#ff00ff"),
+    ("MA60", 60, "MA60", "#00ffff"),
+    ("MA120", 120, "MA120", "#ffa500"),
 ]
 
 for ma_key, window, _, _ in ma_config:
@@ -115,71 +94,142 @@ for ma_key, window, _, _ in ma_config:
         df[ma_key] = df["Close"].rolling(window).mean()
 
 period_days = {"3mo": 65, "6mo": 130, "1y": 250}
-display_df = df.tail(period_days[period])
-
-# 建立均線圖層
-addplots = [
-    mpf.make_addplot(display_df[ma_key], width=1, color=color, label=label)
-    for ma_key, _, label, color in ma_config
-    if ma_key in display_df.columns and display_df[ma_key].notna().any()
-]
+display_df = df.tail(period_days[period]).reset_index(drop=True)
 
 # ============================================================
-# 5. 繪圖與顯示
+# 5. 繪圖 (完全重寫：複製你 Lambda generate_kline_chart 的純 Matplotlib 邏輯)
 # ============================================================
-fig, axes = mpf.plot(
-    display_df,
-    type="candle",
-    volume=True,
-    addplot=addplots,
-    figsize=(16, 9),
-    style=my_style,
-    returnfig=True,
-    panel_ratios=(3, 1),
-    title=f"{symbol} {stock_names.get(symbol, '')}",
+dates = display_df["Date"].tolist()
+opens = display_df["Open"].tolist()
+highs = display_df["High"].tolist()
+lows = display_df["Low"].tolist()
+closes = display_df["Close"].tolist()
+volumes = display_df["Volume"].tolist()
+
+ma5 = display_df["MA5"].tolist()
+ma10 = display_df["MA10"].tolist()
+ma20 = display_df["MA20"].tolist()
+ma60 = display_df["MA60"].tolist()
+ma120 = display_df["MA120"].tolist()
+
+# 建立 3:1 高度比的上下子圖，共用 X 軸
+fig, (ax1, ax2) = plt.subplots(
+    2,
+    1,
+    figsize=(14, 8),
+    dpi=150,
+    sharex=True,
+    gridspec_kw={"height_ratios": [3, 1]},
 )
 
-# 2. 強制將 K 線圖與成交量圖的 Y 軸標籤與刻度移到右邊
-for ax in axes:
-    ax.yaxis.tick_right()
-    ax.yaxis.set_label_position("right")
+fig.patch.set_facecolor("#1e1e1e")
+ax1.set_facecolor("#1e1e1e")
+ax2.set_facecolor("#1e1e1e")
 
-if addplots:
-    axes[0].legend(
-        loc="upper left",
-        facecolor="#1e1e1e",
-        edgecolor="none",
-        labelcolor="white",
+# ────── 上圖：手動繪製蠟燭 K 線 & 成交量顏色判定 ──────
+bar_colors = []
+for i in range(len(display_df)):
+    if closes[i] >= opens[i]:
+        color = "#ff4a4a"  # 紅
+        lower_body = opens[i]
+        height = max(closes[i] - opens[i], 0.3)
+    else:
+        color = "#22c55e"  # 綠
+        lower_body = closes[i]
+        height = max(opens[i] - closes[i], 0.3)
+
+    bar_colors.append(color)
+
+    # 畫 K 線的影線與實體矩形到 ax1
+    ax1.vlines(x=i, ymin=lows[i], ymax=highs[i], colors=color, linewidth=1.2)
+    ax1.add_patch(
+        plt.Rectangle(
+            (i - 0.3, lower_body),
+            0.6,
+            height,
+            facecolor=color,
+            edgecolor=color,
+        )
     )
 
+# ────── 上圖：繪製 5, 10, 20, 60, 120 均線 ──────
+ax1.plot(ma5, label="MA5", color="#ffffff", linewidth=1.0, alpha=0.9)
+ax1.plot(ma10, label="MA10", color="#ffdf00", linewidth=1.0, alpha=0.9)
+ax1.plot(ma20, label="MA20", color="#ff00ff", linewidth=1.0, alpha=0.9)
+ax1.plot(ma60, label="MA60", color="#00ffff", linewidth=1.0, alpha=0.9)
+ax1.plot(ma120, label="MA120", color="#ffa500", linewidth=1.0, alpha=0.9)
+ax1.legend(
+    loc="upper left", facecolor="#1e1e1e", edgecolor="none", labelcolor="white"
+)
+
+# ────── 下圖：繪製成交量直條圖 ──────
+ax2.bar(
+    range(len(display_df)), volumes, color=bar_colors, width=0.6, alpha=0.8
+)
+
+# ────── 圖表細節美化 & Y 軸靠右設定 ──────
+stock_title = stock_names.get(symbol, "")
+ax1.set_title(
+    f"{symbol} {stock_title} K線圖", color="white", fontsize=16, pad=15
+)
+ax1.grid(True, color="#333333", linestyle="--", linewidth=0.5)
+ax2.grid(True, color="#333333", linestyle="--", linewidth=0.5)
+
+# 上圖與下圖不顯示左邊 Y 軸刻度，標籤全部靠右
+ax1.yaxis.tick_right()
+ax1.yaxis.set_label_position("right")
+ax1.tick_params(
+    axis="y",
+    colors="white",
+    labelleft=False,
+    left=False,
+    labelright=True,
+    right=True,
+)
+
+ax2.yaxis.tick_right()
+ax2.yaxis.set_label_position("right")
+ax2.tick_params(
+    axis="y",
+    colors="white",
+    labelleft=False,
+    left=False,
+    labelright=True,
+    right=True,
+)
+
+# X 軸坐標軸控制
+step = max(len(dates) // 6, 1)
+ax2.set_xticks(range(0, len(dates), step))
+ax2.set_xticklabels(
+    [dates[i] for i in range(0, len(dates), step)], rotation=30, color="white"
+)
+ax2.set_xlim(-1, len(display_df))
+
+plt.tight_layout()
+
+# 顯示在頁面上
 st.pyplot(fig, use_container_width=True)
-plt.close(fig)
-
-
-
-# 強制下載按鈕
-#force_update = st.button("🔄 強制線上重新下載 K 線", use_container_width=True)
-
 
 # ============================================================
-# 按鈕區 (更新 & 一鍵發送 Telegram)
+# 6. 按鈕區 (更新 & 一鍵發送 Telegram)
 # ============================================================
 col1, col2 = st.columns(2)
 
 with col1:
     if st.button("🔄 強制線上重新下載 K 線", use_container_width=True):
+        with st.spinner("正在下載最新 K 線資料..."):
+            download_stock(symbol)
         st.rerun()
 
 with col2:
     if st.button("🚀 發送至 Telegram", use_container_width=True):
         with st.spinner("正在將 K 線圖發送至 Telegram..."):
-            # 讀取你的 Config (填入你的 bucket 名稱)
             cfg = Config("YOUR_BUCKET_NAME")
 
-            stock_title = stock_names.get(symbol, "")
             caption = f"📈 {symbol} {stock_title} K線圖"
 
-            # 直接傳入圖表物件、Token 與 Chat ID
+            # 直接將 Matplotlib 產生的 fig 物件轉為 Bytes 發送
             success = send_telegram_photo_bytes(
                 fig=fig,
                 bot_token=cfg.bot_token,
@@ -192,3 +242,5 @@ with col2:
             else:
                 st.error("❌ 發送失敗，請確認網路或 Config 設定。")
 
+# 最後才關閉圖表
+plt.close(fig)

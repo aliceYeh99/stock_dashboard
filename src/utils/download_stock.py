@@ -11,7 +11,7 @@ import yfinance as yf
 
 DATA_DIR = "data/stocks/download"
 
-DAYS = 180
+DAYS = 430
 
 
 # -------------------------
