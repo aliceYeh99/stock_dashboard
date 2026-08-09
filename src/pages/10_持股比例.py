@@ -13,8 +13,11 @@ import altair as alt
 
 from utils.storage import load_json, load_root_json, save_root_json
 from config import BROKERS, FEE_RATES
+from datetime import date
 
 st.title("🥧 持股比例總覽")
+
+
 
 stock_names = load_root_json("stock_names.json", {})
 stock_groups = load_root_json("stock_groups.json", {})  # symbol -> 族群名稱
@@ -24,6 +27,10 @@ stock_groups = load_root_json("stock_groups.json", {})  # symbol -> 族群名稱
 # -------------------------
 rows = []
 for broker_label, broker_key in BROKERS.items():
+    # if broker_key == "employee":
+    #     continue
+
+
     fee_rate = FEE_RATES[broker_label]
 
     portfolio = load_json("portfolio.json", {}, broker_key)
@@ -100,6 +107,40 @@ merged["pnl_pct"] = merged.apply(
 total_market_value = merged["market_value"].sum()
 merged["weight"] = merged["market_value"] / total_market_value if total_market_value else 0.0
 
+
+
+# -------------------------
+# 每日快照：存下「今天」的族群+市值分布
+# -------------------------
+st.divider()
+col_snap1, col_snap2 = st.columns([3, 1])
+with col_snap2:
+    if st.button("📸 存今天的快照", use_container_width=True):
+        today_str = date.today().isoformat()
+        history = load_root_json("portfolio_history.json", {})
+
+        # 注意：這裡要用「合併完成後」的 merged DataFrame，
+        # 所以這段程式碼要放在 merged 算完之後，不是最上面！
+        snapshot = {}
+        for _, row in merged.iterrows():
+            if row["market_value"] > 0:
+                snapshot[row["symbol"]] = {
+                    "market_value": round(row["market_value"], 2),
+                    "group": row["group"],
+                    "name": row["name"],
+                }
+
+        history[today_str] = snapshot
+        save_root_json("portfolio_history.json", history)
+        st.success(f"已存下 {today_str} 的快照（{len(snapshot)} 檔股票）")
+
+with col_snap1:
+    history_check = load_root_json("portfolio_history.json", {})
+    if history_check:
+        st.caption(f"目前已累積 {len(history_check)} 天的快照，最新一筆：{max(history_check.keys())}")
+    else:
+        st.caption("目前還沒有任何快照，按右邊按鈕存下第一筆")
+
 # -------------------------
 # 總覽指標
 # -------------------------
@@ -170,17 +211,55 @@ st.subheader("依個股")
 
 pie_by_stock = merged.copy()
 pie_by_stock["label"] = pie_by_stock["name"] + "（" + pie_by_stock["symbol"] + "）"
+pie_by_stock["pct_label"] = pie_by_stock["weight"].map(lambda w: f"{w:.1%}")
 
-chart_stock = alt.Chart(pie_by_stock).mark_arc(innerRadius=60).encode(
-    theta=alt.Theta("market_value:Q", title="市值"),
-    color=alt.Color("label:N", title="個股"),
-    tooltip=[
-        alt.Tooltip("label:N", title="股票"),
-        alt.Tooltip("market_value:Q", title="市值", format=",.0f"),
-        alt.Tooltip("weight:Q", title="佔比", format=".1%"),
-    ],
+chart_type_stock = st.radio(
+    "圖表類型",
+    options=["圓餅圖", "長條圖"],
+    horizontal=True,
+    key="chart_type_stock",
 )
-st.altair_chart(chart_stock, use_container_width=True)
+
+if chart_type_stock == "圓餅圖":
+    base_stock = alt.Chart(pie_by_stock).encode(
+        theta=alt.Theta("market_value:Q", title="市值", stack=True),
+    )
+
+    arc_stock = base_stock.mark_arc(innerRadius=60).encode(
+        color=alt.Color("label:N", title="個股"),
+        tooltip=[
+            alt.Tooltip("label:N", title="股票"),
+            alt.Tooltip("market_value:Q", title="市值", format=",.0f"),
+            alt.Tooltip("weight:Q", title="佔比", format=".1%"),
+        ],
+    )
+
+    text_stock = base_stock.mark_text(radius=140, size=13).encode(
+        text="pct_label:N",
+        order=alt.Order("market_value:Q", sort="descending"),
+    )
+
+    st.altair_chart(arc_stock + text_stock, use_container_width=True)
+
+else:
+    bar_data_stock = pie_by_stock.sort_values("market_value", ascending=True)
+
+    bar_stock = alt.Chart(bar_data_stock).mark_bar().encode(
+        x=alt.X("market_value:Q", title="市值"),
+        y=alt.Y("label:N", title="個股", sort=alt.EncodingSortField(field="market_value", order="ascending")),
+        color=alt.Color("label:N", title="個股", legend=None),
+        tooltip=[
+            alt.Tooltip("label:N", title="股票"),
+            alt.Tooltip("market_value:Q", title="市值", format=",.0f"),
+            alt.Tooltip("weight:Q", title="佔比", format=".1%"),
+        ],
+    )
+
+    text_bar_stock = bar_stock.mark_text(align="left", dx=3).encode(
+        text="pct_label:N",
+    )
+
+    st.altair_chart(bar_stock + text_bar_stock, use_container_width=True)
 
 # -------------------------
 # 持股比例圖：依族群
@@ -193,17 +272,55 @@ group_agg["weight"] = (
     group_agg["market_value"] / group_agg["market_value"].sum()
     if group_agg["market_value"].sum() else 0.0
 )
+group_agg["pct_label"] = group_agg["weight"].map(lambda w: f"{w:.1%}")
 
-chart_group = alt.Chart(group_agg).mark_arc(innerRadius=60).encode(
-    theta=alt.Theta("market_value:Q", title="市值"),
-    color=alt.Color("group:N", title="族群"),
-    tooltip=[
-        alt.Tooltip("group:N", title="族群"),
-        alt.Tooltip("market_value:Q", title="市值", format=",.0f"),
-        alt.Tooltip("weight:Q", title="佔比", format=".1%"),
-    ],
+chart_type_group = st.radio(
+    "圖表類型",
+    options=["圓餅圖", "長條圖"],
+    horizontal=True,
+    key="chart_type_group",
 )
-st.altair_chart(chart_group, use_container_width=True)
+
+if chart_type_group == "圓餅圖":
+    base_group = alt.Chart(group_agg).encode(
+        theta=alt.Theta("market_value:Q", title="市值", stack=True),
+    )
+
+    arc_group = base_group.mark_arc(innerRadius=60).encode(
+        color=alt.Color("group:N", title="族群"),
+        tooltip=[
+            alt.Tooltip("group:N", title="族群"),
+            alt.Tooltip("market_value:Q", title="市值", format=",.0f"),
+            alt.Tooltip("weight:Q", title="佔比", format=".1%"),
+        ],
+    )
+
+    text_group = base_group.mark_text(radius=140, size=13).encode(
+        text="pct_label:N",
+        order=alt.Order("market_value:Q", sort="descending"),
+    )
+
+    st.altair_chart(arc_group + text_group, use_container_width=True)
+
+else:
+    bar_data_group = group_agg.sort_values("market_value", ascending=True)
+
+    bar_group = alt.Chart(bar_data_group).mark_bar().encode(
+        x=alt.X("market_value:Q", title="市值"),
+        y=alt.Y("group:N", title="族群", sort=alt.EncodingSortField(field="market_value", order="ascending")),
+        color=alt.Color("group:N", title="族群", legend=None),
+        tooltip=[
+            alt.Tooltip("group:N", title="族群"),
+            alt.Tooltip("market_value:Q", title="市值", format=",.0f"),
+            alt.Tooltip("weight:Q", title="佔比", format=".1%"),
+        ],
+    )
+
+    text_bar_group = bar_group.mark_text(align="left", dx=3).encode(
+        text="pct_label:N",
+    )
+
+    st.altair_chart(bar_group + text_bar_group, use_container_width=True)
 
 # -------------------------
 # 明細表（跨券商合併後）
@@ -252,3 +369,77 @@ for tab, broker_label in zip(tabs, BROKERS.keys()):
             }),
             use_container_width=True,
         )
+
+
+# -------------------------
+# 族群佔比時間軸
+# -------------------------
+st.divider()
+st.subheader("📈 族群佔比時間軸")
+
+history = load_root_json("portfolio_history.json", {})
+
+if len(history) < 2:
+    st.info("目前快照數量不足（至少需要2天），累積更多天數後這裡會顯示趨勢圖")
+else:
+    timeline_rows = []
+    for day, snapshot in history.items():
+        group_totals = {}
+        for symbol, info in snapshot.items():
+            group = info.get("group", "未分類")
+            group_totals[group] = group_totals.get(group, 0) + info.get("market_value", 0)
+
+        for group, value in group_totals.items():
+            timeline_rows.append({
+                "date": day,
+                "group": group,
+                "market_value": value,
+            })
+
+    timeline_df = pd.DataFrame(timeline_rows)
+    timeline_df["date"] = pd.to_datetime(timeline_df["date"])
+    timeline_df = timeline_df.sort_values("date")
+
+    area_chart = alt.Chart(timeline_df).mark_area().encode(
+                x=alt.X(
+            "date:T",
+            title="日期",
+            axis=alt.Axis(
+                format="%Y/%m/%d",
+                tickCount={"interval": "day", "step": 1},
+                labelAngle=-45,
+            ),
+        ),
+        y=alt.Y("market_value:Q", title="市值", stack="normalize"),
+        color=alt.Color("group:N", title="族群"),
+        tooltip=[
+            alt.Tooltip("date:T", title="日期", format="%Y-%m-%d"),
+            alt.Tooltip("group:N", title="族群"),
+            alt.Tooltip("market_value:Q", title="市值", format=",.0f"),
+        ],
+    )
+
+    st.altair_chart(area_chart, use_container_width=True)
+
+    st.caption("上圖為百分比堆疊（看比例變化）。若想看實際市值變化，勾選下方選項")
+
+    if st.checkbox("顯示實際市值（非百分比）"):
+        area_chart_absolute = alt.Chart(timeline_df).mark_area().encode(
+                x=alt.X(
+            "date:T",
+            title="日期",
+            axis=alt.Axis(
+                format="%Y/%m/%d",
+                tickCount={"interval": "day", "step": 1},
+                labelAngle=-45,
+            ),
+        ),
+            y=alt.Y("market_value:Q", title="市值", stack=True),
+            color=alt.Color("group:N", title="族群"),
+            tooltip=[
+                alt.Tooltip("date:T", title="日期", format="%Y-%m-%d"),
+                alt.Tooltip("group:N", title="族群"),
+                alt.Tooltip("market_value:Q", title="市值", format=",.0f"),
+            ],
+        )
+        st.altair_chart(area_chart_absolute, use_container_width=True)

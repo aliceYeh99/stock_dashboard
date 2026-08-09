@@ -53,6 +53,8 @@ def get_stock_data(symbol, force_download=False):
 # ============================================================
 # 3. Streamlit UI 介面
 # ============================================================
+import json  # 👈 加在檔案最上方的 import 區塊即可，這裡先提醒一下
+
 st.set_page_config(page_title="K線", layout="wide")
 st.title("📈 K線圖")
 
@@ -61,16 +63,87 @@ stock_options = {
     f"{symbol} {stock_names.get(symbol, '')}": symbol
     for symbol in sorted(SYMBOLS)
 }
+option_labels = list(stock_options.keys())
 
-# selected_label = st.selectbox("股票", list(stock_options.keys()))
-# symbol = stock_options[selected_label]
+# ------------------------------------------------------------
+# 3.1 常用股票：讀取 / 儲存 (存成 JSON 檔，不再 hard code)
+# ------------------------------------------------------------
+FAVORITES_FILE = os.path.join(DATA_DIR, "favorite_symbols.json")
 
-# 找到原本 3. Streamlit UI 介面 區塊的這幾行，替換成以下程式碼：
+
+def load_favorites():
+    if os.path.exists(FAVORITES_FILE):
+        try:
+            with open(FAVORITES_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, list):
+                    return data
+        except Exception:
+            pass
+    return []
+
+
+def save_favorites(symbols):
+    with open(FAVORITES_FILE, "w", encoding="utf-8") as f:
+        json.dump(symbols, f, ensure_ascii=False, indent=2)
+
+
+if "favorite_symbols" not in st.session_state:
+    st.session_state.favorite_symbols = load_favorites()
+
+if "selected_symbol" not in st.session_state:
+    st.session_state.selected_symbol = None
+
+# ------------------------------------------------------------
+# 3.2 勾選常用股票 + 儲存按鈕
+# ------------------------------------------------------------
+with st.expander("⭐ 設定常用股票", expanded=False):
+    favorite_labels_default = [
+        label
+        for label, sym in stock_options.items()
+        if sym in st.session_state.favorite_symbols
+    ]
+
+    selected_favorite_labels = st.multiselect(
+        "勾選要放進常用股票的項目",
+        options=option_labels,
+        default=favorite_labels_default,
+    )
+
+    if st.button("💾 儲存常用股票", use_container_width=True):
+        new_favorites = [stock_options[label] for label in selected_favorite_labels]
+        save_favorites(new_favorites)
+        st.session_state.favorite_symbols = new_favorites
+        st.toast("✅ 已儲存常用股票！", icon="💾")
+
+# ------------------------------------------------------------
+# 3.3 常用股票快捷按鈕（依儲存結果動態顯示）
+# ------------------------------------------------------------
+if st.session_state.favorite_symbols:
+    st.write("🔥 常用股票")
+    quick_cols = st.columns(len(st.session_state.favorite_symbols))
+    for col, sym in zip(quick_cols, st.session_state.favorite_symbols):
+        name = stock_names.get(sym, "")
+        with col:
+            if st.button(f"{sym} {name}", use_container_width=True, key=f"quick_{sym}"):
+                st.session_state.selected_symbol = sym
+else:
+    st.info("💡 尚未設定常用股票，可在上方「設定常用股票」勾選並儲存。")
+
+# ------------------------------------------------------------
+# 3.4 搜尋股票下拉選單
+# ------------------------------------------------------------
+default_label = None
+if st.session_state.selected_symbol:
+    for label, sym in stock_options.items():
+        if sym == st.session_state.selected_symbol:
+            default_label = label
+            break
 
 selected_label = st.selectbox(
     "搜尋股票 (可直接輸入代號或名稱)",
-    options=list(stock_options.keys()),
-    index=None,  # 👈 預設不選取任何項目，點進去即可直接打字
+    options=option_labels,
+    index=option_labels.index(default_label) if default_label else None,
     placeholder="請輸入或選擇股票...",
 )
 
@@ -80,6 +153,7 @@ if not selected_label:
     st.stop()
 
 symbol = stock_options[selected_label]
+st.session_state.selected_symbol = symbol
 
 
 

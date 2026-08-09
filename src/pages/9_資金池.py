@@ -3,7 +3,7 @@ import pandas as pd
 import altair as alt
 
 from datetime import datetime, timedelta
-
+from symbols import SYMBOLS
 from utils.backtest.engine import run_backtest
 from utils.backtest.strategies import STRATEGY_MAP
 from utils.storage import *
@@ -14,6 +14,7 @@ st.caption("固定同一個策略，比較不同的股票組合（各自視為�
 stock_names = load_root_json("stock_names.json", {})
 
 DEV_SYMBOLS = ["2330.TW", "0050.TW", '6488.TWO', '2337.TW', '2327.TW']
+DEV_SYMBOLS = SYMBOLS
 
 # -------------------------
 # 固定策略（跟8_回測.py一樣的參數區塊）
@@ -42,16 +43,31 @@ st.subheader("📦 定義股票組合")
 
 num_pools = st.number_input("要比較幾種組合？", min_value=1, max_value=6, value=2, step=1)
 
+# 👇 Hard code 每個組合的預設持股（依順序對應 組合1、組合2...）
+# 如果組合數量超過這個清單長度，超過的部分會自動 fallback 成空清單
+DEFAULT_POOL_SYMBOLS = [
+    ["2454.TW", "2327.TW", "6488.TWO", "2301.TW", "2408.TW", "2337.TW", "2344.TW",  "2330.TW", "2308.TW"],      # 組合1 預設
+    ["00981A.TW"],     # 組合2 預設
+]
+
+
 pool_symbols_map = {}
 cols = st.columns(min(num_pools, 3))
 for i in range(num_pools):
     col = cols[i % len(cols)]
     with col:
         pool_name = st.text_input(f"組合 {i+1} 名稱", value=f"組合{i+1}", key=f"pool_name_{i}")
+
+        default_symbols = (
+            DEFAULT_POOL_SYMBOLS[i] if i < len(DEFAULT_POOL_SYMBOLS) else []
+        )
+        # 防呆：避免 hard code 的股票代號不在 DEV_SYMBOLS 裡導致 multiselect 報錯
+        default_symbols = [s for s in default_symbols if s in DEV_SYMBOLS]
+        
         selected = st.multiselect(
             f"組合 {i+1} 持股",
             options=DEV_SYMBOLS,
-            default=[DEV_SYMBOLS[i % len(DEV_SYMBOLS)]],
+            default=default_symbols,
             format_func=lambda s: f"{stock_names.get(s, '')} ({s})",
             key=f"pool_symbols_{i}",
         )
@@ -64,7 +80,8 @@ st.divider()
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    start_date = st.date_input("開始日期", value=datetime.now() - timedelta(days=365))
+    #start_date = st.date_input("開始日期", value=datetime.now() - timedelta(days=365))
+    start_date = st.date_input("開始日期", value=datetime(2026,1,1))
 
 with col2:
     end_date = st.date_input("結束日期", value=datetime.now())
