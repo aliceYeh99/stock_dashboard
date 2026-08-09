@@ -174,6 +174,43 @@ if st.button("🚀 開始回測", use_container_width=True):
 
     st.altair_chart(chart, use_container_width=True)
 
+    # -------------------------
+    # 剩餘現金曲線
+    # -------------------------
+
+    st.divider()
+    st.subheader("💵 剩餘現金")
+
+    cash_frames = []
+
+    for name, r in valid_results.items():
+        cash = r["cash"]
+
+        cash_frames.append(pd.DataFrame({
+            "日期": pd.to_datetime(cash.index),
+            "現金": cash.values,
+            "策略": label(name),
+        }))
+
+    cash_df = pd.concat(cash_frames, ignore_index=True)
+
+    cash_chart = alt.Chart(cash_df).mark_line().encode(
+        x=alt.X(
+            "日期:T",
+            axis=alt.Axis(format="%Y/%m/%d", title="日期")
+        ),
+        y=alt.Y(
+            "現金:Q",
+            title="剩餘現金"
+        ),
+        color=alt.Color(
+            "策略:N",
+            title="策略"
+        ),
+    )
+
+    st.altair_chart(cash_chart, use_container_width=True)
+
     st.divider()
     st.subheader("📋 交易紀錄")
 

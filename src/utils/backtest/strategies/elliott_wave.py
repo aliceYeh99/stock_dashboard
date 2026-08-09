@@ -69,28 +69,26 @@ def _find_pivots_causal(close: pd.Series, pct: float):
 
 
 def _evaluate_wave_state(wave_pivots) -> bool:
-    """回傳 True 表示目前判斷處於多頭推動波，應該持有。"""
-    if len(wave_pivots) < 3:
+    """回傳 True 表示目前判斷處於多頭結構，應該持有。"""
+    if len(wave_pivots) < 4:
         return False
 
     pts = wave_pivots[-6:]
     prices = [p[1] for p in pts]
     types = [p[2] for p in pts]
 
-    # ZigZag 理論上一定交替，若沒交替代表邏輯有誤，保守出場
     for j in range(1, len(types)):
         if types[j] == types[j - 1]:
-            return False
+            return False  # 理論上應該交替，沒交替代表邏輯異常，保守出場
 
-    if types[-1] == "H":
-        # 剛創新高，暫定仍在推動波中
-        return True
+    highs = [prices[i] for i in range(len(types)) if types[i] == "H"]
+    lows = [prices[i] for i in range(len(types)) if types[i] == "L"]
 
-    # 目前處在修正低點：檢查有沒有跌破前一段推動波的起點
-    if len(prices) >= 3 and prices[-1] < prices[-3]:
-        return False  # 結構失效
+    # 多頭結構：高點墊高、低點墊高（至少要有兩個以上高低點才能比較）
+    higher_highs = len(highs) < 2 or highs[-1] > highs[-2]
+    higher_lows = len(lows) < 2 or lows[-1] > lows[-2]
 
-    return True
+    return higher_highs and higher_lows
 
 
 def signal(df: pd.DataFrame, pct: float = 0.05) -> pd.Series:

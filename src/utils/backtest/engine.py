@@ -61,7 +61,7 @@ def run_backtest(
 
     portfolio = Portfolio(initial_capital, list(data.keys()))
     equity_curve = []
-
+    cash_curve = []
     for date in all_dates:
         today_open, today_close = {}, {}
         for sym, df in data.items():
@@ -86,12 +86,15 @@ def run_backtest(
                 portfolio.sell(sym, price, date)
 
         equity_curve.append((date, portfolio.total_value(today_close)))
+        cash_curve.append((date, portfolio.cash))
 
     equity = pd.Series(dict(equity_curve)).sort_index()
+    cash = pd.Series(dict(cash_curve)).sort_index()
     metrics = compute_metrics(equity, initial_capital)
 
     return {
         "equity": equity,
+        "cash": cash,
         "trade_log": portfolio.trade_log,
         "metrics": metrics,
         "skipped": skipped,
