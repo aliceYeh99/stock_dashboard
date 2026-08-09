@@ -10,11 +10,24 @@ utils/backtest/strategies/__init__.py
 
 pages/8_回測.py 完全不用改，選單跟參數欄位都是自動長出來的。
 """
-from . import macd, half_year
+from . import macd, half_year, quarter, year, month, buy_and_hold, high_breakout,volume_breakout,pull_wave, elliott_wave
 
 STRATEGY_MAP = {
+    "buy_and_hold": buy_and_hold,
+    "month": month,
     "macd": macd,
-    "half_year": half_year
+    "half_year": half_year,
+    "year": year,
+    "quarter": quarter,
+
+    "elliott_wave": elliott_wave
+}
+
+不行的 ={
+    "high_breakout": high_breakout,
+    "volume_breakout": volume_breakout,
+    "pull_wave": pull_wave,
+
 }
 
 

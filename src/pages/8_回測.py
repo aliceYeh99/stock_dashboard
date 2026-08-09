@@ -6,43 +6,55 @@ from datetime import datetime, timedelta
 
 from utils.backtest.engine import run_backtest
 from utils.backtest.strategies import STRATEGY_MAP
+from utils.storage import *
 
 st.title("🧪 回測")
 
 # -------------------------
-# 選股票
-# 開發階段先手動放兩支，之後要接「挑股清單」的話
-# 改成: symbols_all = load_json("selected.json", [], broker) 就好
+# 股票名稱
 # -------------------------
-DEV_SYMBOLS = ["2330.TW", "0050.TW",'6488.TWO', '2337.TW','2327.TW']
+stock_names = load_root_json(
+    "stock_names.json",
+    {}
+)
+
+
+# -------------------------
+# 選股票
+# -------------------------
+DEV_SYMBOLS = ["2330.TW", "0050.TW", '6488.TWO', '2337.TW', '2327.TW']
 
 symbols = st.multiselect(
     "回測股票",
     options=DEV_SYMBOLS,
     default=DEV_SYMBOLS,
+    format_func=lambda symbol: f"{stock_names.get(symbol, '')} ({symbol})",
 )
 
 # -------------------------
-# 選策略（自動列出 STRATEGY_MAP 裡有的策略）
+# 選策略（可多選，一次跑多個來比較）
+# default=list(STRATEGY_MAP.keys())[:1],
 # -------------------------
-strategy_name = st.selectbox(
-    "策略",
+strategy_names = st.multiselect(
+    "策略（可多選比較）",
     options=list(STRATEGY_MAP.keys()),
+    default=list(STRATEGY_MAP.keys())[:3],
     format_func=lambda k: STRATEGY_MAP[k].META["name"],
 )
 
-strategy_module = STRATEGY_MAP[strategy_name]
-
-# 策略參數欄位是根據 META["params"] 自動長出來的，
-# 之後新增策略完全不用改這支頁面
-with st.expander("⚙️ 策略參數", expanded=False):
-    strategy_params = {}
-    for key, default in strategy_module.META["params"].items():
-        strategy_params[key] = st.number_input(
-            key,
-            value=default,
-            key=f"param_{strategy_name}_{key}",
-        )
+# 每個被選到的策略各自一個參數區塊，key 要帶策略名稱避免互相覆蓋
+strategy_params_map = {}
+for strategy_name in strategy_names:
+    strategy_module = STRATEGY_MAP[strategy_name]
+    with st.expander(f"⚙️ {strategy_module.META['name']} 參數", expanded=False):
+        params = {}
+        for key, default in strategy_module.META["params"].items():
+            params[key] = st.number_input(
+                key,
+                value=default,
+                key=f"param_{strategy_name}_{key}",
+            )
+        strategy_params_map[strategy_name] = params
 
 # -------------------------
 # 回測區間 / 本金
@@ -77,83 +89,107 @@ if st.button("🚀 開始回測", use_container_width=True):
         st.warning("請至少選擇一檔股票")
         st.stop()
 
-    with st.spinner("回測中..."):
-        result = run_backtest(
-            symbols=symbols,
-            strategy_name=strategy_name,
-            start=start_date.strftime("%Y-%m-%d"),
-            end=end_date.strftime("%Y-%m-%d"),
-            initial_capital=initial_capital,
-            strategy_params=strategy_params,
-        )
+    if not strategy_names:
+        st.warning("請至少選擇一個策略")
+        st.stop()
 
-    if result["skipped"]:
+    results = {}  # strategy_name -> result dict
+    with st.spinner("回測中..."):
+        for strategy_name in strategy_names:
+            results[strategy_name] = run_backtest(
+                symbols=symbols,
+                strategy_name=strategy_name,
+                start=start_date.strftime("%Y-%m-%d"),
+                end=end_date.strftime("%Y-%m-%d"),
+                initial_capital=initial_capital,
+                strategy_params=strategy_params_map[strategy_name],
+            )
+
+    # 統一顯示一次「本地沒資料被跳過」的警告（每個策略的 skipped 應該一樣）
+    all_skipped = set()
+    for r in results.values():
+        all_skipped.update(r["skipped"])
+    if all_skipped:
         st.warning(
             f"以下股票本地沒有資料，已跳過（請先到『下載』頁面更新）："
-            f"{'、'.join(result['skipped'])}"
+            f"{'、'.join(sorted(all_skipped))}"
         )
 
-    if result["metrics"] is None:
+    # 過濾掉沒有任何資料可回測的策略
+    valid_results = {
+        name: r for name, r in results.items() if r["metrics"] is not None
+    }
+
+    if not valid_results:
         st.error("沒有任何股票資料可回測")
         st.stop()
 
-    metrics = result["metrics"]
+    def label(name):
+        return STRATEGY_MAP[name].META["name"]
 
     st.divider()
-    st.subheader("📊 回測結果")
+    st.subheader("📊 績效指標對照")
 
-    col1, col2, col3, col4, col5 = st.columns(5)
+    metrics_table = pd.DataFrame({
+        label(name): {
+            "最終資產": r["metrics"]["final_equity"],
+            "總報酬率": r["metrics"]["total_return"],
+            "CAGR": r["metrics"]["cagr"],
+            "Sharpe": r["metrics"]["sharpe"],
+            "最大回撤": r["metrics"]["max_dd"],
+        }
+        for name, r in valid_results.items()
+    }).T
 
-    with col1:
-        st.metric("最終資產", f"{metrics['final_equity']:,.0f}")
-
-    with col2:
-        st.metric("總報酬率", f"{metrics['total_return']:.2%}")
-
-    with col3:
-        st.metric("CAGR", f"{metrics['cagr']:.2%}")
-
-    with col4:
-        st.metric("Sharpe", f"{metrics['sharpe']:.2f}")
-
-    with col5:
-        st.metric("最大回撤", f"{metrics['max_dd']:.2%}")
+    st.dataframe(
+        metrics_table.style.format({
+            "最終資產": "{:,.0f}",
+            "總報酬率": "{:.2%}",
+            "CAGR": "{:.2%}",
+            "Sharpe": "{:.2f}",
+            "最大回撤": "{:.2%}",
+        }),
+        use_container_width=True,
+    )
 
     st.divider()
-    st.subheader("💰 資產曲線")
+    st.subheader("💰 資產曲線比較")
 
-    equity = result["equity"].copy()
+    chart_frames = []
+    for name, r in valid_results.items():
+        equity = r["equity"]
+        chart_frames.append(pd.DataFrame({
+            "日期": pd.to_datetime(equity.index),
+            "資產": equity.values,
+            "策略": label(name),
+        }))
 
-    chart_df = pd.DataFrame({
-        "日期": pd.to_datetime(equity.index),
-        "資產": equity.values,
-    })
+    chart_df = pd.concat(chart_frames, ignore_index=True)
 
     chart = alt.Chart(chart_df).mark_line().encode(
-        x=alt.X(
-            "日期:T",
-            axis=alt.Axis(format="%Y/%m/%d", title="日期")
-        ),
-        y=alt.Y(
-            "資產:Q",
-            title="資產"
-        ),
+        x=alt.X("日期:T", axis=alt.Axis(format="%Y/%m/%d", title="日期")),
+        y=alt.Y("資產:Q", title="資產"),
+        color=alt.Color("策略:N", title="策略"),
     )
 
     st.altair_chart(chart, use_container_width=True)
 
-
-
-
-
-
-
-
     st.divider()
     st.subheader("📋 交易紀錄")
 
-    trade_df = pd.DataFrame(result["trade_log"])
-    if trade_df.empty:
-        st.write("這段期間沒有觸發任何交易")
-    else:
-        st.dataframe(trade_df, use_container_width=True)
+    tabs = st.tabs([label(name) for name in valid_results.keys()])
+    for tab, (name, r) in zip(tabs, valid_results.items()):
+        with tab:
+            trade_df = pd.DataFrame(r["trade_log"])
+            if trade_df.empty:
+                st.write("這段期間沒有觸發任何交易")
+            else:
+                # 股票代號 → 股票名稱
+                if "symbol" in trade_df.columns:
+                    trade_df["symbol"] = trade_df["symbol"].map(
+                        lambda x: f"{stock_names.get(x, x)} ({x})"
+                    )
+                    trade_df["amount"] = (
+                        trade_df["shares"] * trade_df["price"]
+                    ).map(lambda x: int(x))
+                st.dataframe(trade_df, use_container_width=True)
