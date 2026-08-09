@@ -10,10 +10,11 @@ utils/backtest/strategies/__init__.py
 
 pages/8_回測.py 完全不用改，選單跟參數欄位都是自動長出來的。
 """
-from . import macd
+from . import macd, half_year
 
 STRATEGY_MAP = {
     "macd": macd,
+    "half_year": half_year
 }
 
 

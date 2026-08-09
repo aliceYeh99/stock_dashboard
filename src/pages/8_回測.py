@@ -1,5 +1,7 @@
 import streamlit as st
 import pandas as pd
+import altair as alt
+
 from datetime import datetime, timedelta
 
 from utils.backtest.engine import run_backtest
@@ -12,7 +14,7 @@ st.title("🧪 回測")
 # 開發階段先手動放兩支，之後要接「挑股清單」的話
 # 改成: symbols_all = load_json("selected.json", [], broker) 就好
 # -------------------------
-DEV_SYMBOLS = ["2330.TW", "2454.TW"]
+DEV_SYMBOLS = ["2330.TW", "0050.TW",'6488.TWO', '2337.TW','2327.TW']
 
 symbols = st.multiselect(
     "回測股票",
@@ -119,7 +121,33 @@ if st.button("🚀 開始回測", use_container_width=True):
 
     st.divider()
     st.subheader("💰 資產曲線")
-    st.line_chart(result["equity"])
+
+    equity = result["equity"].copy()
+
+    chart_df = pd.DataFrame({
+        "日期": pd.to_datetime(equity.index),
+        "資產": equity.values,
+    })
+
+    chart = alt.Chart(chart_df).mark_line().encode(
+        x=alt.X(
+            "日期:T",
+            axis=alt.Axis(format="%Y/%m/%d", title="日期")
+        ),
+        y=alt.Y(
+            "資產:Q",
+            title="資產"
+        ),
+    )
+
+    st.altair_chart(chart, use_container_width=True)
+
+
+
+
+
+
+
 
     st.divider()
     st.subheader("📋 交易紀錄")
