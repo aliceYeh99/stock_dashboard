@@ -22,7 +22,7 @@ stock_names = load_root_json(
 # -------------------------
 # 選股票
 # -------------------------
-DEV_SYMBOLS = ["2330.TW", "0050.TW", '6488.TWO', '2337.TW', '2327.TW']
+DEV_SYMBOLS = ["2330.TW", "0050.TW", '6488.TWO', '2337.TW', '2327.TW', '2344.TW','2337.TW']
 
 symbols = st.multiselect(
     "回測股票",

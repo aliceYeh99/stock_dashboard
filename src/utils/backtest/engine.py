@@ -15,6 +15,8 @@ utils/backtest/engine.py
 """
 import pandas as pd
 
+from utils.backtest.strategies.range_trading import signal
+
 from .data import load_multi
 from .metrics import compute_metrics
 from .portfolio import Portfolio
@@ -40,6 +42,13 @@ def run_backtest(
     strategy_module = get_strategy(strategy_name)
 
     raw_data = load_multi(symbols, start, end)
+    raw = load_multi(["2330.TW", "0050.TW"], "2025-08-16", "2026-08-16")
+
+    for sym, df in raw.items():
+        pos = signal(df, lookback=20, entry_zone=0.2, exit_zone=0.2)
+        n_buy_days = (pos.diff() == 1).sum()   # 從 0 → 1 的次數，等於進場次數
+        print(sym, "進場次數:", n_buy_days, "持有天數比例:", pos.mean())
+
     skipped = [s for s in symbols if s not in raw_data]
 
     if not raw_data:
@@ -87,6 +96,9 @@ def run_backtest(
 
         equity_curve.append((date, portfolio.total_value(today_close)))
         cash_curve.append((date, portfolio.cash))
+
+    # 輸出 trading_log
+    print(portfolio.trade_log)
 
     equity = pd.Series(dict(equity_curve)).sort_index()
     cash = pd.Series(dict(cash_curve)).sort_index()

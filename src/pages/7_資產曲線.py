@@ -333,7 +333,7 @@ def main() -> None:
     tg_chat_id = config.chat_id      # 替換成你的 Chat ID 或 Channel ID
 
     chinese_font = find_system_chinese_font()
-
+    # 目前總資產先用手 key
     raw_asset_data = load_data_json(DATA_PATH, [])
     if not raw_asset_data:
         st.warning("目前沒有資產資料")
