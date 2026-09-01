@@ -6,17 +6,109 @@ pages/10_持股比例.py
     - 依個股 / 依自訂族群，畫圓餅圖看持股比例
     - 同一檔股票在不同券商都有價格時，取日期最新的價格
     - 持有成本沿用各券商自己的手續費率去算，合併後再加總
+    - 可將「依個股」「依族群」圖表一鍵發送至 Telegram
 """
 import streamlit as st
 import pandas as pd
 import altair as alt
+import matplotlib.pyplot as plt
 
 from utils.storage import load_json, load_root_json, save_root_json
 from config import BROKERS, FEE_RATES
 from datetime import date
+from common.Config import Config
+from common.telegram import send_telegram_photo_bytes
+
+# -------------------------
+# 中文字型設定（比照 K線頁面，避免 Telegram 圖表中文變成方框）
+# -------------------------
+FONT_NAME = "Microsoft JhengHei"
+plt.rcParams["font.sans-serif"] = [
+    FONT_NAME,
+    "Arial Unicode MS",
+    "SimHei",
+    "sans-serif",
+]
+plt.rcParams["axes.unicode_minus"] = False
 
 st.title("🥧 持股比例總覽")
 
+
+# -------------------------
+# Telegram 用：matplotlib 圓餅圖 / 長條圖產生器
+# -------------------------
+def build_matplotlib_pie(labels, values, title):
+    """畫一張深色主題的圓餅圖，回傳 matplotlib Figure（給 send_telegram_photo_bytes 用）"""
+    colors = plt.cm.tab20.colors
+
+    fig, ax = plt.subplots(figsize=(8, 8), dpi=150)
+    fig.patch.set_facecolor("#1e1e1e")
+    ax.set_facecolor("#1e1e1e")
+
+    wedges, texts, autotexts = ax.pie(
+        values,
+        labels=labels,
+        autopct="%1.1f%%",
+        colors=[colors[i % len(colors)] for i in range(len(values))],
+        textprops={"color": "white", "fontsize": 10},
+        wedgeprops={"edgecolor": "#1e1e1e", "linewidth": 1.5},
+        pctdistance=0.8,
+    )
+    for at in autotexts:
+        at.set_color("black")
+        at.set_fontsize(9)
+
+    ax.set_title(title, color="white", fontsize=16, pad=15)
+    fig.tight_layout()
+    return fig
+
+
+def build_matplotlib_bar(labels, values, title, value_label="市值"):
+    """畫一張深色主題的水平長條圖，回傳 matplotlib Figure（給 send_telegram_photo_bytes 用）"""
+    colors = plt.cm.tab20.colors
+
+    fig, ax = plt.subplots(figsize=(10, max(4, len(labels) * 0.5)), dpi=150)
+    fig.patch.set_facecolor("#1e1e1e")
+    ax.set_facecolor("#1e1e1e")
+
+    y_pos = range(len(labels))
+    ax.barh(
+        list(y_pos),
+        values,
+        color=[colors[i % len(colors)] for i in range(len(labels))],
+    )
+    ax.set_yticks(list(y_pos))
+    ax.set_yticklabels(labels, color="white", fontsize=10)
+    ax.set_xlabel(value_label, color="white")
+    ax.set_title(title, color="white", fontsize=16, pad=15)
+
+    ax.tick_params(axis="x", colors="white")
+    ax.grid(True, axis="x", color="#333333", linestyle="--", linewidth=0.5)
+    for spine in ax.spines.values():
+        spine.set_color("#1e1e1e")
+
+    total = sum(values) if sum(values) else 0
+    for i, v in enumerate(values):
+        pct = v / total if total else 0
+        ax.text(v, i, f" {pct:.1%}", color="white", va="center", fontsize=9)
+
+    fig.tight_layout()
+    return fig
+
+
+def send_chart_to_telegram(fig, caption):
+    """共用：讀取 Config 並發送圖表，回傳是否成功"""
+    try:
+        cfg = Config("YOUR_BUCKET_NAME")
+        success = send_telegram_photo_bytes(
+            fig=fig,
+            bot_token=cfg.bot_token,
+            chat_id=cfg.chat_id,
+            caption=caption,
+        )
+    finally:
+        plt.close(fig)
+    return success
 
 
 stock_names = load_root_json("stock_names.json", {})
@@ -261,6 +353,35 @@ else:
 
     st.altair_chart(bar_stock + text_bar_stock, use_container_width=True)
 
+if st.button("🚀 發送「依個股」圖表至 Telegram", use_container_width=True, key="tg_stock"):
+    with st.spinner("正在產生圖表並發送至 Telegram..."):
+        sorted_desc = pie_by_stock.sort_values("market_value", ascending=False)
+
+        if chart_type_stock == "圓餅圖":
+            fig_tg_stock = build_matplotlib_pie(
+                sorted_desc["label"].tolist(),
+                sorted_desc["market_value"].tolist(),
+                "持股比例（依個股）",
+            )
+        else:
+            sorted_asc = sorted_desc.sort_values("market_value", ascending=True)
+            fig_tg_stock = build_matplotlib_bar(
+                sorted_asc["label"].tolist(),
+                sorted_asc["market_value"].tolist(),
+                "持股比例（依個股）",
+            )
+
+        caption_stock = (
+            f"📊 持股比例（依個股）\n"
+            f"總市值：{total_market_value:,.0f}"
+        )
+        ok_stock = send_chart_to_telegram(fig_tg_stock, caption_stock)
+
+        if ok_stock:
+            st.toast("✅ 已發送「依個股」圖表至 Telegram！", icon="🎉")
+        else:
+            st.error("❌ 發送失敗，請確認網路或 Config 設定。")
+
 # -------------------------
 # 持股比例圖：依族群
 # -------------------------
@@ -321,6 +442,35 @@ else:
     )
 
     st.altair_chart(bar_group + text_bar_group, use_container_width=True)
+
+if st.button("🚀 發送「依族群」圖表至 Telegram", use_container_width=True, key="tg_group"):
+    with st.spinner("正在產生圖表並發送至 Telegram..."):
+        group_sorted_desc = group_agg.sort_values("market_value", ascending=False)
+
+        if chart_type_group == "圓餅圖":
+            fig_tg_group = build_matplotlib_pie(
+                group_sorted_desc["group"].tolist(),
+                group_sorted_desc["market_value"].tolist(),
+                "持股比例（依族群）",
+            )
+        else:
+            group_sorted_asc = group_sorted_desc.sort_values("market_value", ascending=True)
+            fig_tg_group = build_matplotlib_bar(
+                group_sorted_asc["group"].tolist(),
+                group_sorted_asc["market_value"].tolist(),
+                "持股比例（依族群）",
+            )
+
+        caption_group = (
+            f"📊 持股比例（依族群）\n"
+            f"總市值：{total_market_value:,.0f}"
+        )
+        ok_group = send_chart_to_telegram(fig_tg_group, caption_group)
+
+        if ok_group:
+            st.toast("✅ 已發送「依族群」圖表至 Telegram！", icon="🎉")
+        else:
+            st.error("❌ 發送失敗，請確認網路或 Config 設定。")
 
 # -------------------------
 # 明細表（跨券商合併後）
